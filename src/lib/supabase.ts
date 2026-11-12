@@ -37,10 +37,14 @@ export function maandbedrag(k: Kantoor, pakketten: Pakket[], extraPrijs: number)
 export async function beheerActie(kantoor_id: string, actie: 'licentie' | 'status') {
   const { data, error } = await supabase.functions.invoke('beheer-actie', { body: { kantoor_id, actie } })
   if (error) {
-    // supabase-js geeft bij een niet-2xx een generieke fout; de echte melding zit in de response
-    const ctx = (error as { context?: Response }).context
-    if (ctx) { try { const j = await ctx.json(); throw new Error(j.error || error.message) } catch (e) { if (e instanceof Error && e.message !== 'Unexpected end of JSON input') throw e } }
-    throw new Error(error.message)
+    // supabase-js geeft bij een niet-2xx een generieke fout; de echte melding zit in de response-body.
+    let melding = error.message
+    const ctx = (error as { context?: unknown }).context
+    try {
+      if (ctx instanceof Response) { const j = await ctx.clone().json(); if (j?.error) melding = j.error }
+      else if (ctx && typeof ctx === 'object' && 'error' in ctx && typeof (ctx as { error: unknown }).error === 'string') melding = (ctx as { error: string }).error
+    } catch { /* body niet leesbaar: generieke melding houden */ }
+    throw new Error(melding)
   }
   if (data?.error) throw new Error(data.error)
   return data as Record<string, unknown>
