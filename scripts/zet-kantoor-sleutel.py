@@ -1,6 +1,6 @@
 """Zet de service-sleutel van een kantoor in de Vault van de beheer-omgeving.
 
-Gebruik (vanuit C:\Dev\coportaal-beheer):
+Gebruik (vanuit de map coportaal-beheer):
     python scripts/zet-kantoor-sleutel.py <project-ref van het kantoor>
 
 De sleutel wordt rechtstreeks van Supabase opgehaald en doorgezet; hij komt
