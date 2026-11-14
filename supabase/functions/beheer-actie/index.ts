@@ -8,7 +8,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-api-version",
   "Content-Type": "application/json",
 };
 const antwoord = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers });
