@@ -16,7 +16,7 @@ ref = sys.argv[1]
 naam = f"kantoor_{ref}_service_key"
 
 r = subprocess.run(f"npx supabase projects api-keys --project-ref {ref} -o json",
-                   shell=True, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
+                   shell=True, capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=120)
 if r.returncode != 0:
     sys.exit("Sleutels ophalen mislukt: " + r.stderr.strip()[-300:])
 sleutels = json.loads(r.stdout[r.stdout.index("["):])
@@ -29,7 +29,7 @@ if "'" in sleutel:
 sql = (f"delete from vault.secrets where name = '{naam}'; "
        f"select vault.create_secret('{sleutel}', '{naam}', 'Service-sleutel kantoor {ref}') is not null as opgeslagen;")
 r = subprocess.run(["npx", "supabase", "db", "query", "--linked", "--yes", sql],
-                   shell=(sys.platform == "win32"), capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
+                   shell=(sys.platform == "win32"), capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=120)
 if r.returncode != 0 or "opgeslagen" not in r.stdout:
     sys.exit("Opslaan mislukt: " + (r.stderr or r.stdout).strip()[-300:].replace(sleutel, "***"))
 print(f"✓ Sleutel voor {ref} staat in de Vault als {naam}.")
