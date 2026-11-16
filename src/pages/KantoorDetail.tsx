@@ -1,25 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ShieldCheck, ExternalLink } from 'lucide-react'
-import { supabase, beheerActie, datum, euro, maandbedrag, STATUS_KLEUR, STATUS_LABEL, type Actie, type Kantoor, type Pakket } from '../lib/supabase'
+import { ArrowLeft, RefreshCw, ShieldCheck, ExternalLink, DatabaseBackup, AlertTriangle } from 'lucide-react'
+import { supabase, beheerActie, datum, euro, maandbedrag, STATUS_KLEUR, STATUS_LABEL, BACKUP_ACTIES_URL, mb, type Actie, type Backup, type Kantoor, type Pakket } from '../lib/supabase'
 
 export default function KantoorDetail() {
   const { id } = useParams()
   const [k, setK] = useState<Kantoor | null>(null)
   const [pakketten, setPakketten] = useState<Pakket[]>([])
   const [acties, setActies] = useState<Actie[]>([])
+  const [backups, setBackups] = useState<Backup[]>([])
   const [extraPrijs, setExtraPrijs] = useState(12.5)
   const [bezig, setBezig] = useState<string | null>(null)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
   const [bewerk, setBewerk] = useState<Partial<Kantoor>>({})
 
   const laad = async () => {
-    const [kk, p, a, i] = await Promise.all([
+    const [kk, p, a, i, b] = await Promise.all([
       supabase.from('kantoren').select('*').eq('id', id).single(),
       supabase.from('pakketten').select('*').order('volgorde'),
       supabase.from('kantoor_acties').select('*').eq('kantoor_id', id).order('created_at', { ascending: false }).limit(30),
       supabase.from('instellingen').select('*').eq('sleutel', 'prijs_extra_gebruiker').maybeSingle(),
+      supabase.from('kantoor_backups').select('*').eq('kantoor_id', id).order('gestart_op', { ascending: false }).limit(8),
     ])
+    setBackups((b.data as Backup[]) || [])
     setK(kk.data as Kantoor); setBewerk(kk.data as Kantoor); setPakketten((p.data as Pakket[]) || []); setActies((a.data as Actie[]) || [])
     if (i.data) setExtraPrijs(Number(i.data.waarde))
   }
@@ -55,6 +58,11 @@ export default function KantoorDetail() {
   const gewenst = pakket?.modules ?? []
   const werkelijk = k.laatste_check?.modules
   const inSync = werkelijk ? [...gewenst].sort().join() === [...werkelijk].sort().join() : null
+
+  // Back-ups: laatste geslaagde en of die recent genoeg is (elke nacht hoort er één te komen).
+  const laatsteGelukt = backups.find(x => x.status === 'gelukt')
+  const uurOud = laatsteGelukt ? (Date.now() - new Date(laatsteGelukt.gestart_op).getTime()) / 3_600_000 : null
+  const backupTeOud = !!k.supabase_ref && k.status !== 'beeindigd' && (uurOud == null || uurOud > 36)
 
   return (
     <div>
@@ -109,6 +117,44 @@ export default function KantoorDetail() {
                   <button className="btn-primary" disabled={!!bezig || !pakket} onClick={() => actie('licentie')}><ShieldCheck className="h-4 w-4" />Licentie doorvoeren</button>
                 </div>
                 <p className="mt-2 text-xs text-ink-400">Licentie doorvoeren zet de modules van het pakket ({gewenst.join(', ') || 'alleen basis'}) in de omgeving van dit kantoor.</p>
+              </>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 font-semibold text-navy-800"><DatabaseBackup className="h-4 w-4" /> Back-ups</h2>
+              <a href={BACKUP_ACTIES_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-navy-700 hover:underline">Starten / herstellen <ExternalLink className="h-3 w-3" /></a>
+            </div>
+            {!k.supabase_ref ? (
+              <p className="mt-3 text-sm text-ink-400">Nog geen omgeving gekoppeld; er valt nog niets te back-uppen.</p>
+            ) : (
+              <>
+                {backupTeOud && (
+                  <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-100 p-2 text-sm text-amber-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {laatsteGelukt ? `Laatste geslaagde back-up is ${Math.round(uurOud!)} uur oud. Er hoort elke nacht een nieuwe te komen.` : 'Er is nog geen geslaagde back-up van deze omgeving.'}
+                  </p>
+                )}
+                {laatsteGelukt && (
+                  <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
+                    <dt className="text-ink-400">Laatste geslaagde</dt><dd>{datum(laatsteGelukt.gestart_op)}</dd>
+                    <dt className="text-ink-400">Database</dt><dd>{laatsteGelukt.tabellen ?? '—'} tabellen · {mb(laatsteGelukt.db_bytes)} versleuteld</dd>
+                    <dt className="text-ink-400">Bestanden</dt><dd>{laatsteGelukt.bestanden_totaal ?? '—'} · {mb(laatsteGelukt.bestanden_bytes)}</dd>
+                  </dl>
+                )}
+                <ul className="mt-3 space-y-1.5 text-sm">
+                  {backups.map(b => (
+                    <li key={b.id} className="flex gap-2">
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${b.status === 'mislukt' ? 'bg-red-500' : b.status === 'bezig' ? 'bg-amber-400' : 'bg-teal-600'}`} />
+                      <div className="min-w-0">
+                        <p className="text-ink-900">{datum(b.gestart_op)} · {b.status === 'gelukt' ? 'gelukt' : b.status === 'bezig' ? 'bezig…' : 'mislukt'}{b.bron === 'handmatig' ? ' (handmatig)' : ''}</p>
+                        {b.melding && <p className="break-words text-xs text-ink-400">{b.melding}</p>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-ink-400">Elke nacht: database versleuteld (30 dagen dagelijks, 12 maanden maandelijks) en alle bestanden. Bij het kantoor verwijderde bestanden blijven nog 90 dagen terug te halen.</p>
               </>
             )}
           </div>

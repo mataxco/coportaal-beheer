@@ -17,6 +17,16 @@ export type Aanvraag = {
 }
 export type Actie = { id: string; kantoor_id: string; actie: string; details: unknown; gelukt: boolean | null; melding: string | null; uitgevoerd_door: string | null; created_at: string }
 
+export type Backup = {
+  id: string; kantoor_id: string; gestart_op: string; klaar_op: string | null; status: 'bezig' | 'gelukt' | 'mislukt'
+  db_bytes: number | null; tabellen: number | null; rijen: number | null
+  bestanden_totaal: number | null; bestanden_gekopieerd: number | null; bestanden_bytes: number | null
+  overgeslagen: number; melding: string | null; bron: string
+}
+/** Waar de back-uptaak draait (starten, logboek, herstellen). */
+export const BACKUP_ACTIES_URL = import.meta.env.VITE_BACKUP_ACTIES_URL || 'https://github.com/mataxco/coportaal-beheer/actions'
+export const mb = (bytes: number | null) => (bytes == null ? '—' : bytes < 1048576 ? `${Math.max(1, Math.round(bytes / 1024))} kB` : `${(bytes / 1048576).toFixed(bytes < 104857600 ? 1 : 0)} MB`)
+
 export const STATUS_LABEL: Record<Kantoor['status'], string> = { inrichten: 'Inrichten', actief: 'Actief', opgeschort: 'Opgeschort', beeindigd: 'Beëindigd' }
 export const STATUS_KLEUR: Record<Kantoor['status'], string> = {
   inrichten: 'bg-gold-100 text-navy-800', actief: 'bg-teal-100 text-teal-600', opgeschort: 'bg-amber-100 text-amber-800', beeindigd: 'bg-gray-100 text-gray-600',

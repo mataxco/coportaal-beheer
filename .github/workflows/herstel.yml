@@ -1,0 +1,55 @@
+name: Back-up herstellen
+
+# Zet een back-up terug in een NIEUWE, lege omgeving. Zet vooraf het geheim
+# HERSTEL_DB_URL op de databaseverbinding van die nieuwe omgeving.
+on:
+  workflow_dispatch:
+    inputs:
+      bron:
+        description: 'Project-ref van het kantoor waarvan je de back-up terugzet'
+        required: true
+      backup:
+        description: 'Welke back-up: "laatste" of een datum zoals 2026-11-16'
+        required: true
+        default: 'laatste'
+      bestanden_naar:
+        description: 'Project-ref van de nieuwe omgeving (voor de bestanden); leeg = bestanden niet terugzetten'
+        required: false
+        default: ''
+      bevestig:
+        description: 'Typ HERSTEL om te bevestigen'
+        required: true
+
+jobs:
+  herstel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      BACKUP_WACHTWOORD: ${{ secrets.BACKUP_WACHTWOORD }}
+      HERSTEL_DB_URL: ${{ secrets.HERSTEL_DB_URL }}
+      BEHEER_REF: ${{ vars.BEHEER_REF }}
+      BRON: ${{ inputs.bron }}
+      KEUZE: ${{ inputs.backup }}
+      BESTANDEN_NAAR: ${{ inputs.bestanden_naar }}
+      BEVESTIG: ${{ inputs.bevestig }}
+    steps:
+      - name: Bevestiging controleren
+        run: |
+          if [ "$BEVESTIG" != "HERSTEL" ]; then echo "Niet bevestigd."; exit 1; fi
+          if [ -z "$HERSTEL_DB_URL" ]; then echo "Het geheim HERSTEL_DB_URL ontbreekt."; exit 1; fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm install --no-audit --no-fund @supabase/supabase-js
+      - name: Herstellen
+        run: |
+          if [ -n "$BESTANDEN_NAAR" ]; then
+            node scripts/herstel.mjs --bron "$BRON" --backup "$KEUZE" --uit "$RUNNER_TEMP/herstel" --bestanden-naar "$BESTANDEN_NAAR"
+          else
+            node scripts/herstel.mjs --bron "$BRON" --backup "$KEUZE" --uit "$RUNNER_TEMP/herstel"
+          fi

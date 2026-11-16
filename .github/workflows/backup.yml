@@ -1,0 +1,54 @@
+name: Back-up kantoren
+
+# Elke nacht om 03:30 (winter) / 04:30 (zomer) Nederlandse tijd, en handmatig te starten.
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Alleen dit kantoor (project-ref); leeg = alle kantoren'
+        required: false
+        default: ''
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      BACKUP_WACHTWOORD: ${{ secrets.BACKUP_WACHTWOORD }}
+      BEHEER_REF: ${{ vars.BEHEER_REF }}
+      BACKUP_UIT: ${{ github.workspace }}/uit
+      ALLEEN_REF: ${{ inputs.ref }}
+      AANLEIDING: ${{ github.event_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm install --no-audit --no-fund @supabase/supabase-js
+      - name: Back-up maken
+        run: |
+          if [ -n "$ALLEEN_REF" ]; then
+            node scripts/backup.mjs --ref "$ALLEEN_REF" --bron handmatig
+          elif [ "$AANLEIDING" = "schedule" ]; then
+            node scripts/backup.mjs --bron gepland
+          else
+            node scripts/backup.mjs --bron handmatig
+          fi
+      # Tweede kopie buiten Supabase: de versleutelde dumps blijven 30 dagen bij GitHub.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: db-backups-${{ github.run_id }}
+          path: uit/
+          retention-days: 30
+          if-no-files-found: ignore
