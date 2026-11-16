@@ -19,7 +19,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 
-const CLI = process.env.SUPABASE_BIN || 'supabase'
+// SUPABASE_BIN mag uit meerdere woorden bestaan, bv. "npx supabase".
+const [CLI, ...CLI_VOOR] = (process.env.SUPABASE_BIN || 'supabase').split(' ')
 const args = process.argv.slice(2)
 const arg = n => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null }
 const BRON = arg('--bron')
@@ -41,7 +42,7 @@ function run(cmd, a, opties = {}) {
   return r.stdout
 }
 function sleutel(ref) {
-  const uit = run(CLI, ['projects', 'api-keys', '--project-ref', ref, '-o', 'json'])
+  const uit = run(CLI, [...CLI_VOOR, 'projects', 'api-keys', '--project-ref', ref, '-o', 'json'])
   const k = JSON.parse(uit.slice(uit.indexOf('['))).find(x => x.name === 'service_role' || x.id === 'service_role')?.api_key
   if (!k) throw new Error(`Geen service-sleutel voor ${ref}`)
   if (process.env.GITHUB_ACTIONS) console.log(`::add-mask::${k}`)

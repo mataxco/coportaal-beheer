@@ -29,6 +29,7 @@ jobs:
       BACKUP_WACHTWOORD: ${{ secrets.BACKUP_WACHTWOORD }}
       HERSTEL_DB_URL: ${{ secrets.HERSTEL_DB_URL }}
       BEHEER_REF: ${{ vars.BEHEER_REF }}
+      SUPABASE_BIN: npx supabase
       BRON: ${{ inputs.bron }}
       KEUZE: ${{ inputs.backup }}
       BESTANDEN_NAAR: ${{ inputs.bestanden_naar }}
@@ -42,10 +43,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-      - run: npm install --no-audit --no-fund @supabase/supabase-js
+      # Vaste versie van de Supabase-CLI via npm: geen afhankelijkheid van het opzoeken van 'latest'.
+      - run: npm install --no-audit --no-fund --no-save @supabase/supabase-js supabase@3.1.0
       - name: Herstellen
         run: |
           if [ -n "$BESTANDEN_NAAR" ]; then

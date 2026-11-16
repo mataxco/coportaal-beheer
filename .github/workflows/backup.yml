@@ -23,6 +23,7 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       BACKUP_WACHTWOORD: ${{ secrets.BACKUP_WACHTWOORD }}
       BEHEER_REF: ${{ vars.BEHEER_REF }}
+      SUPABASE_BIN: npx supabase
       BACKUP_UIT: ${{ github.workspace }}/uit
       ALLEEN_REF: ${{ inputs.ref }}
       AANLEIDING: ${{ github.event_name }}
@@ -31,10 +32,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-      - run: npm install --no-audit --no-fund @supabase/supabase-js
+      # Vaste versie van de Supabase-CLI via npm: geen afhankelijkheid van het opzoeken van 'latest'.
+      - run: npm install --no-audit --no-fund --no-save @supabase/supabase-js supabase@3.1.0
       - name: Back-up maken
         run: |
           if [ -n "$ALLEEN_REF" ]; then

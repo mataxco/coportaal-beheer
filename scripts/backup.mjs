@@ -22,7 +22,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 
-const CLI = process.env.SUPABASE_BIN || 'supabase'
+// SUPABASE_BIN mag uit meerdere woorden bestaan, bv. "npx supabase".
+const [CLI, ...CLI_VOOR] = (process.env.SUPABASE_BIN || 'supabase').split(' ')
 const BEHEER_REF = process.env.BEHEER_REF
 const WACHTWOORD = process.env.BACKUP_WACHTWOORD
 const UIT_MAP = process.env.BACKUP_UIT || ''            // map voor een extra kopie (GitHub-artifact)
@@ -69,7 +70,7 @@ function run(cmd, cmdArgs, opties = {}) {
 
 /** Service-sleutel van een project ophalen (komt nooit in de log). */
 function serviceSleutel(ref) {
-  const uit = run(CLI, ['projects', 'api-keys', '--project-ref', ref, '-o', 'json'], { timeout: 120_000 })
+  const uit = run(CLI, [...CLI_VOOR, 'projects', 'api-keys', '--project-ref', ref, '-o', 'json'], { timeout: 120_000 })
   const lijst = JSON.parse(uit.slice(uit.indexOf('[')))
   const k = lijst.find(x => x.name === 'service_role' || x.id === 'service_role')?.api_key
   if (!k) throw new Error(`Geen service-sleutel gevonden voor ${ref}`)
@@ -110,9 +111,9 @@ async function parallel(items, n, fn) {
 async function backupDatabase(ref, beheer, stempel) {
   const map = mkdtempSync(join(tmpdir(), `bk-${ref}-`))
   try {
-    run(CLI, ['db', 'dump', `--remote=${ref}`, '-f', join(map, 'roles.sql'), '--role-only'])
-    run(CLI, ['db', 'dump', `--remote=${ref}`, '-f', join(map, 'schema.sql')])
-    run(CLI, ['db', 'dump', `--remote=${ref}`, '-f', join(map, 'data.sql'), '--data-only', '--use-copy'])
+    run(CLI, [...CLI_VOOR, 'db', 'dump', `--remote=${ref}`, '-f', join(map, 'roles.sql'), '--role-only'])
+    run(CLI, [...CLI_VOOR, 'db', 'dump', `--remote=${ref}`, '-f', join(map, 'schema.sql')])
+    run(CLI, [...CLI_VOOR, 'db', 'dump', `--remote=${ref}`, '-f', join(map, 'data.sql'), '--data-only', '--use-copy'])
 
     const schema = readFileSync(join(map, 'schema.sql'), 'utf8')
     const tabellen = (schema.match(/^CREATE TABLE /gm) || []).length
