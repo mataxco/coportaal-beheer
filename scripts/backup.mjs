@@ -41,13 +41,18 @@ const BRON = argWaarde('--bron') || 'gepland'
 // Alleen de bestanden bijwerken (geen databasedump); handig om lokaal te testen zonder Docker.
 const ALLEEN_BESTANDEN = args.includes('--alleen-bestanden')
 
-if (!WACHTWOORD || !BEHEER_REF || (process.env.GITHUB_ACTIONS && !process.env.SUPABASE_ACCESS_TOKEN)) {
-  console.error('✗ SUPABASE_ACCESS_TOKEN, BACKUP_WACHTWOORD en BEHEER_REF zijn verplicht.')
-  process.exit(2)
-}
-if (WACHTWOORD.length < 16) {
-  console.error('✗ BACKUP_WACHTWOORD moet minstens 16 tekens zijn.')
-  process.exit(2)
+{
+  // Zeg precies wat er ontbreekt (nooit de waarden zelf), zodat het in GitHub meteen duidelijk is.
+  const mist = []
+  if (process.env.GITHUB_ACTIONS && !process.env.SUPABASE_ACCESS_TOKEN) mist.push('secret SUPABASE_ACCESS_TOKEN ontbreekt (Settings → Secrets and variables → Actions → tab Secrets)')
+  if (!WACHTWOORD) mist.push('secret BACKUP_WACHTWOORD ontbreekt (tab Secrets)')
+  else if (WACHTWOORD.length < 16) mist.push(`secret BACKUP_WACHTWOORD is te kort (${WACHTWOORD.length} tekens, minstens 16)`)
+  if (!BEHEER_REF) mist.push('variable BEHEER_REF ontbreekt (tab Variables, niet Secrets)')
+  if (mist.length) {
+    for (const m of mist) console.error(`::error::${m}`)
+    console.error('✗ Back-up niet gestart: ' + mist.join(' | '))
+    process.exit(2)
+  }
 }
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
