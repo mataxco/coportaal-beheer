@@ -1,0 +1,93 @@
+diff --git a/index.html b/index.html
+index 38f134f..891e9ef 100644
+--- a/index.html
++++ b/index.html
+@@ -5,12 +5,14 @@
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+     <link rel="alternate icon" type="image/x-icon" href="/favicon.ico?v=2" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+-    <title>MaTaxCo Portaal</title>
+-    <meta name="description" content="MaTaxCo Klantenportaal" />
+-    <meta name="author" content="MaTaxCo" />
++    <!-- Neutrale productnaam; na inloggen zet de app de kantoornaam uit de
++         instellingen als document.title (white-label). -->
++    <title>CoPortaal</title>
++    <meta name="description" content="CoPortaal — CRM-portaal voor administratie- en advieskantoren" />
++    <meta name="author" content="CoPortaal" />
+ 
+-    <meta property="og:title" content="MaTaxCo Portaal" />
+-    <meta property="og:description" content="MaTaxCo Klantenportaal" />
++    <meta property="og:title" content="CoPortaal" />
++    <meta property="og:description" content="CoPortaal — CRM-portaal voor administratie- en advieskantoren" />
+     <meta property="og:type" content="website" />
+   </head>
+ 
+diff --git a/src/App.tsx b/src/App.tsx
+index 22ebf53..cdcb3a5 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -13,7 +13,8 @@ import { InactivityGuard } from "./components/InactivityGuard";
+ import { TaskNotificationListener } from "./components/TaskNotificationListener";
+ import { ViesMonitorRunner } from "./components/ViesMonitorRunner";
+ import { KvkMonitorRunner } from "./components/KvkMonitorRunner";
+-import { lazy, Suspense } from "react";
++import { lazy, Suspense, useEffect } from "react";
++import { useKantoorConfig } from "./hooks/useKantoorConfig";
+ import Dashboard from "./pages/Dashboard";
+ import Klanten from "./pages/Klanten";
+ import Workflow from "./pages/Workflow";
+@@ -50,6 +51,16 @@ const InkoopHerkennen = lazy(() => import("./pages/InkoopHerkennen"));
+ 
+ const queryClient = new QueryClient();
+ 
++// Browsertab-titel: de kantoornaam uit de instellingen zodra die er is (na
++// inloggen), anders de neutrale productnaam uit index.html (white-label).
++function DocumentTitleUpdater() {
++  const { config } = useKantoorConfig();
++  useEffect(() => {
++    document.title = config?.naam?.trim() || 'CoPortaal';
++  }, [config?.naam]);
++  return null;
++}
++
+ const App = () => (
+   <QueryClientProvider client={queryClient}>
+     <TooltipProvider>
+@@ -59,6 +70,7 @@ const App = () => (
+             <VoertuigenProvider>
+                     <Toaster />
+                     <Sonner />
++                    <DocumentTitleUpdater />
+                     <TaskNotificationListener />
+                     <ViesMonitorRunner />
+                     <KvkMonitorRunner />
+diff --git a/src/contexts/AuthContext.tsx b/src/contexts/AuthContext.tsx
+index c5b28d4..28a70aa 100644
+--- a/src/contexts/AuthContext.tsx
++++ b/src/contexts/AuthContext.tsx
+@@ -363,7 +363,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
+     // Bestaande factors houden de issuer waarmee ze ooit zijn aangemeld.
+     const { data: kantoor } = await (supabase as any)
+       .from('kantoor_config').select('naam').order('updated_at').limit(1).maybeSingle();
+-    const issuer = (kantoor?.naam as string | undefined)?.trim() || 'CRM Portaal';
++    const issuer = (kantoor?.naam as string | undefined)?.trim() || 'CoPortaal';
+     const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', issuer });
+     if (error || !data) return { qrCode: '', secret: '', factorId: '', error: error?.message || 'Fout' };
+     return {
+diff --git a/src/pages/Auth.tsx b/src/pages/Auth.tsx
+index 8956df9..4093484 100644
+--- a/src/pages/Auth.tsx
++++ b/src/pages/Auth.tsx
+@@ -244,8 +244,11 @@ export default function Auth() {
+       <Card className="w-full max-w-md">
+         <CardHeader className="text-center">
+           <div className="flex justify-center mb-4">
++            {/* Productlogo (CoPortaal) — bewust hardcoded: vóór het inloggen is er
++                geen sessie en dus geen kantoor_config; het kantoorlogo verschijnt
++                overal ná login. Vervang public/logo.png door het CoPortaal-logo. */}
+             {(currentStep === 'login' || currentStep === 'bootstrap') ? (
+-              <img src="/logo.png" alt="MaTaxCo" className="h-20 w-auto" />
++              <img src="/logo.png" alt="CoPortaal" className="h-20 w-auto" />
+             ) : (
+               <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                 currentStep === 'mfa_verify' || currentStep === 'mfa_enroll'

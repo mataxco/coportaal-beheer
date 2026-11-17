@@ -1,0 +1,20 @@
+---
+name: extern-facturen-mollie-matching
+description: Structureel opgelost (14 aug 2026) — jortt-betaalsync (dagelijks 06:15) is de bron van waarheid voor extern-facturen; Mollie-betaalcheck raakt extern niet meer aan; 120 facturen (€17.5k) écht open ter inning; Fix D (legacy-JWT) blijft open
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 42a68360-7a3f-427f-9b2f-8de9507360d7
+  modified: 2026-08-15T14:30:23.668Z
+---
+
+Stand 14 aug 2026 in `mataxco-portaal` (Supabase `nvbpurdcfxggwcetkcxi`) — het extern-facturen-dossier is structureel opgelost:
+
+- **Jortt = bron van waarheid.** Nieuwe edge function `jortt-betaalsync` + cron `jortt-betaalsync-dagelijks` (06:15). Open bij Jortt = `invoice_due_amount > 0` — let op: Jortt-status `sent` betekent alleen "verzonden", betaalde facturen behouden die status. Sync werkt in beide richtingen (betaald+Jortt-open → openstaand; openstaand+voldaan → betaald via 'jortt'). Veiligheden: leeg Jortt-antwoord of >300 flips → geen write (die rem ving bij de eerste testrun meteen 1.897 onterechte flips af door het sent-misverstand). Migratie `20260814100000_jortt_betaalsync_cron.sql`, commit `f08d221`.
+- **De betaalcheck-cron is op 15 aug OPGEHEVEN** (migratie `20260815090000`). Bedrag-raden bleek onherstelbaar onbetrouwbaar: de run van 15 aug 06:30 zette 19 vérse periodieke facturen op betaald met geleende juli-betalingen (link-betaalde facturen dragen alleen `mollie_payment_link_id`, geen `mollie_payment_id` → verbruik-guard zag die betalingen als vrij), en de strikte runs van 8–13 aug flipten 4 handmatige facturen op maanden- tot járenoude betalingen. Alle 23 hersteld (conditie: `betaald_op < factuurdatum`). **Les: nooit betaalstatus raden op bedragen** — extern = jortt-betaalsync, portaal-eigen = webhook/incasso-run/handmatig. `mollie-betaalcheck-batch` (v6) bestaat nog uitsluitend voor handmatige, gecontroleerde runs met droogloop.
+- **Historie gecorrigeerd** (eerste sync-run, na droogloop): 113 → openstaand (107 import-fout + valse flips), 43 → betaald via 'jortt' (per bank betaald, Jortt had ze afgeletterd). Eindstand: **120 extern open, € 17.553 — dat is écht te innen geld** (aanmanen/incasseren is een actie voor Mustafa; `mollie-incasso-run` slaat extern bewust over).
+- De import (`facturen_extern_importeren`) zette historisch alles op "betaald"; ~1.742 betaald-zonder-bewijs die Jortt óók als voldaan ziet blijven bewust staan.
+- **Fix D (open):** vault-secret `service_role_key` is een legacy-JWT → 401 op `verify_jwt=true` functies (o.a. kvk-lookup, jortt-invoices, mollie-mandaat). Grote blast-radius (alle crons) — apart en voorzichtig roteren.
+- pg_net-timeout `invoke_edge_function` = 120 s; cron-uitkomsten staan in `net._http_response`.
+- **Creditfacturen (16 aug):** de 60 Jortt-credits stonden als positieve facturen met verkeerde bedragen in het portaal (importparser pakte een regelbedrag). Alle 60 gecorrigeerd naar negatief mét btw-split (som −€7.875,49); 4 staan terecht open (Jabrei 1681, Mopals 1690, TM-Fiets 1692, Damascus City 1699). Credit = `totaal < 0` of `crediteert_factuur_id` (badge in lijst). Sync v4: Jortt-due ≠ 0 telt als open (negatief = onverrekende credit). Correcties op extern vereisen tijdelijk `alter table facturen disable trigger facturen_extern_beschermd` (zelfde transactie weer aan). Traffic Agent Pro = klant "NL Agent Pro". Crediteren kan nu ook op ingelezen facturen (regel-terugval via totaal/1,21).
+- **Afspraak betaalstatus (15 aug, Mustafa):** automatisch betaald = alleen hard bewijs (Mollie-webhook/incasso à la minute; Jortt-sync voor extern zolang Jortt nog loopt); ál het andere lettert Mustafa handmatig af via Bankimport. Bankimport kan sinds `b51026b` ook transacties koppelen aan **al betaalde** facturen (alleen de transactie wordt dan afgeletterd, factuur blijft onaangeroerd); de Mollie-afvinken-knop (laatste raad-pad) is verwijderd. **Koers: Jortt uitfaseren** — portaal wordt leidend; jortt-betaalsync stopt zodra de laatste Jortt-facturen zijn afgewikkeld.
